@@ -48,6 +48,13 @@
             fi
 
             micromamba activate ./.venv
+            
+            # Install Flash Attention for GPU memory optimization
+            if ! python -c "import flash_attn" 2>/dev/null; then
+              echo "Installing Flash Attention..."
+              pip install flash-attn --no-build-isolation
+            fi
+            
             echo "Environment ready."
           '';
         };
