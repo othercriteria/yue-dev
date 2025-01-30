@@ -1,50 +1,56 @@
 {
-  description = "YuE development environment";
+  description = "YuE Development Environment";
 
   inputs = {
-    nixpkgs.url = "github:NixPkgs/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-python.url = "github:cachix/nixpkgs-python";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, nixpkgs-python, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs {
-          inherit system;
-          config = {
-            allowUnfree = true;
-            cudaSupport = true;
-          };
-        };
+        pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
 
-        pythonEnv = pkgs.python38.withPackages (ps: with ps; [
-          pytorch-bin
-          torchvision-bin
-          torchaudio-bin
-          pip
-          # Basic development tools
-          ipython
-          jupyter
-        ]);
+        python38 = nixpkgs-python.packages.${system}."3.8";
+        micromamba = pkgs.micromamba;
+        cudatoolkit = pkgs.cudaPackages_11.cudatoolkit;
 
-      in
-      {
+      in {
         devShells.default = pkgs.mkShell {
-          name = "yue-dev";
-
-          buildInputs = with pkgs; [
-            pythonEnv
-            git-lfs
-            cudatoolkit_11_8
-            # Basic development tools
-            poetry
-            black
+          buildInputs = [
+            python38
+            micromamba
+            cudatoolkit
+            pkgs.git
+            pkgs.git-lfs
           ];
 
           shellHook = ''
-            export PYTHONPATH="$PWD:$PYTHONPATH"
-            export LD_LIBRARY_PATH="${pkgs.cudatoolkit_11_8}/lib:$LD_LIBRARY_PATH"
+            export PATH="$PWD/.venv/bin:$PATH"
+            export CUDA_HOME=${cudatoolkit}
+            git lfs install
+
+            # Initialize micromamba shell
+            eval "$(micromamba shell hook --shell bash)"
+
+            if [ ! -d ".venv" ]; then
+              echo "Creating Conda environment..."
+              # Use ./ to specify relative path
+              micromamba create -y -p ./.venv \
+                -c pytorch -c nvidia -c conda-forge \
+                python=3.8 \
+                pytorch \
+                torchvision \
+                torchaudio \
+                pytorch-cuda=11.8
+              echo "Activating Conda environment..."
+            fi
+
+            micromamba activate ./.venv
+            echo "Environment ready."
           '';
         };
-      });
-} 
+      }
+    );
+}
