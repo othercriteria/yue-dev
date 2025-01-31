@@ -1,2 +1,9 @@
 .direnv/
+.micromamba/
 .venv/
+
+.mypy_cache/
+
+flash-attention/
+
+output/
